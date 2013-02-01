@@ -22,7 +22,7 @@ body {
     font-weight: bold;
 }
 
-#info > stitle, a {
+#info > stitle {
     font-size: 14px;
 }
 #info > skeyword {

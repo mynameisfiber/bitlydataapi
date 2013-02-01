@@ -1,224 +1,215 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta charset="utf-8">
-        <script src="http://d3js.org/d3.v3.min.js"></script>
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js"></script>
-        <style>
-            body {
-                padding-right: 25px;
-            }
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+	<meta name="viewport" content="width=1024, user-scalable=no">
 
-            #chart {
-                display: block;
-                float: left;
-                width: 760;
-                padding-right: 10px;
-                margin-right: 10px;
-                border-right: 1px solid #aaa;
-            }
+	<title>Bitly Data API's</title>
 
-            #info {
-                width: 590;
-                overflow-x: scoll;
-                word-wrap: break-word;
-            }
+    <link rel="stylesheet" href="examples/awesomegraph/style.css">
 
-            #info h2 {
-                font-size: 14px;
-            }
-            #info small {
-                font-size: 10px;
-            }
-            #info p {
-                font-size: 12px;
-            }
-        </style>
-    </head>
-    <body>
-        <div id=chart></div>
-        <div id=info> </div>
-        <script>
-            var ACCESS_TOKEN = prompt("bitly access token (see http://dev.bitly.com/authentication.html)");
+	<!-- Required stylesheet -->
+	<link rel="stylesheet" href="deck.js/core/deck.core.css">
+    <link rel="stylesheet" href="http://yandex.st/highlightjs/7.2/styles/xcode.min.css">
+	
+	<!-- Extension CSS files go here. Remove or add as needed. -->
+	<link rel="stylesheet" href="deck.js/extensions/goto/deck.goto.css">
+	<link rel="stylesheet" href="deck.js/extensions/menu/deck.menu.css">
+	<link rel="stylesheet" href="deck.js/extensions/navigation/deck.navigation.css">
+	<link rel="stylesheet" href="deck.js/extensions/status/deck.status.css">
+	<link rel="stylesheet" href="deck.js/extensions/hash/deck.hash.css">
+	<link rel="stylesheet" href="deck.js/extensions/scale/deck.scale.css">
 
-            function make_graph(data) {
-                var graph = [];
-                var url_to_keyword = Object();
-                for (_keyword in data) {
-                    var keyword = data[_keyword].phrase;
-                    var node = Object();
-                    node.name = keyword;
-                    node.id = keyword;
-                    graph = graph.concat(node);
-        
-                    for (var _url in data[_keyword].urls) {
-                        var url = data[_keyword].urls[_url].aggregate_url;
-                        if (url_to_keyword[url] == null) { url_to_keyword[url] = []; }
-                        url_to_keyword[url] = url_to_keyword[url].concat(keyword)
-                    }
-                }
-                var links = [];
-                for (url in url_to_keyword) {
-                    var phrases= url_to_keyword[url];
-                    for (var _p1 in phrases) {
-                        for (var _p2 in phrases) {
-                            if (_p1 != _p2) {
-                                var link = Object();
-                                link.sourceId = phrases[_p1];
-                                link.targetId = phrases[_p2];
-                                link.linkName = "coLink";
-                                link.weight = 1;
-                                links = links.concat(link);
-                            }
-                        }
-                    }
-                }
-                return [graph, links]
-            }
-        
-        
-            d3.json("https://api-ssl.bitly.com/v3/realtime/bursting_phrases?access_token=" + ACCESS_TOKEN, 
-                function(data) {
-                    var graph = make_graph(data.data.phrases);
-                    var nodeSet = graph[0];
-                    var linkSet = graph[1];
-        
-                    var width = 760,
-                        height = 700,
-                        nodeSize = 10;
-                        colorScale = d3.scale.category20();
-        
-                    var svgCanvas = d3.select("#chart").append("svg:svg")
-                        .attr("width", width)
-                        .attr("height", height);
-        
-                    var node_hash = [];
-                    var type_hash = [];
-        
-                    // Create a hash that allows access to each node by its id
-                    nodeSet.forEach(function(d, i) {
-                      node_hash[d.id] = d;
-                      type_hash[d.type] = d.type;
-                    });
-                    
-                    // Append the source object node and the target object node to each link
-                    linkSet.forEach(function(d, i) {
-                      d.source = node_hash[d.sourceId];
-                      d.target = node_hash[d.targetId];
-        	          d.direction = "IN";
-                    });
-        
-                    var force = d3.layout.force()
-                        .charge(-300)
-                        .nodes(nodeSet)
-                        .links(linkSet)
-                        .size([width, height])
-                        .linkDistance( function(d) { if (width < height) { return width*1/4; } else { return height*1/4 } } ) // Controls edge length
-                        .on("tick", tick)
-                        .start();
-                    
-                    // Draw lines for Links between Nodes
-                    var link = svgCanvas.selectAll(".gLink")
-                        .data(force.links())
-                      .enter().append("g")
-                    .attr("class", "gLink")
-                      .append("line")
-                        .attr("class", "link")
-                        .style("stroke", "#ccc")
-                        .attr("x1", function(d) { return d.source.x; })
-                        .attr("y1", function(d) { return d.source.y; })
-                        .attr("x2", function(d) { return d.target.x; })
-                        .attr("y2", function(d) { return d.target.y; });
-                    
-                    // Create Nodes
-                    var node = svgCanvas.selectAll(".node")
-                        .data(force.nodes())
-                        .enter().append("g")
-                        .attr("class", "node")
-                        .attr("id", function(d) { return d.id; })
-                        .on("mouseover", nodeMouseover)
-                        .on("mouseout", nodeMouseout)
-                        .on("mousedown", showInfo)
-                        .call(force.drag);
-                    
-                    // Append circles to Nodes
-                    node.append("circle")
-                        .attr("x", function(d) { return d.x; })
-                        .attr("y", function(d) { return d.y; })
-                        .attr("r", nodeSize ) // Node radius
-                        .attr("id", function(d) { return d.id; })
-                        .style("fill", "White") // Make the nodes hollow looking
-                        .style("stroke-width", 5) // Give the node strokes some thickness
-                        .style("stroke", function(d, i) { colorVal = colorScale(i); return colorVal; } ) // Node stroke colors
-                        .on("mousedown", showInfo)
-                        .call(force.drag);
-                    
-                    // Append text to Nodes
-                    node.append("a")
-                        .attr("xlink:href", function(d) { return d.hlink; })
-                        .append("text")
-                            .attr("x", 20)
-                            .attr("y", -10)
-                            .attr("text-anchor", "start")
-                            .attr("font-family", "Arial, Helvetica, sans-serif")
-                            .style("font", "normal 16px Arial")
-                            .attr("fill", "Blue")
-                            .attr("dy", ".35em")
-                            .text(function(d) { return d.name; });
+	<!-- Style theme. More available in /themes/style/ or create your own. -->
+    <!--<link rel="stylesheet" href="themes/style/web-2.0.css">-->
+    <link rel="stylesheet" href="deck.js/themes/style/swiss.css">
 
-                    function showInfo() {
-                        var id = this.id;
-                        d3.json("https://api-ssl.bitly.com/v3/search?access_token=" + ACCESS_TOKEN + "&query=" + id + "&limit=5&fields=title%2Curl%2csummaryText%2ckeywords",
-                            function(data) {
-                                var html = "<h1>" + id + "</h1>";
-                                data.data.results.forEach(
-                                    function(d, i) {
-                                        html += "<a href='" + d.url + "'><h2>" + d.title + "</h2></a>";
-                                        if (d.keywords != null) {
-                                            html += "<small>" + d.keywords + "</small><br>";
-                                        }
-                                        html += "<p>" + d.summaryText + "</p><br>";
-                                    }
-                                );
-                                $("#info").html(html);
-                            }
-                        );
-                    }
-        
-                    function tick() {
-                            link
-                              .attr("x1", function(d) { return d.source.x; })
-                              .attr("y1", function(d) { return d.source.y; })
-                              .attr("x2", function(d) { return d.target.x; })
-                              .attr("y2", function(d) { return d.target.y; });
-                          
-                            node
-                              .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
-                    }
-        
-                    function nodeMouseover() {
-                        d3.select(this).select("circle").transition()
-                            .duration(250)
-                	        .attr("r", 15);
-        
-                	    d3.select(this).select("text").transition()
-                            .duration(250)
-                	        .style("font", "bold 20px Arial")
-                	        .attr("fill", "Blue");
-                    }
-                
-                    function nodeMouseout() {
-                        d3.select(this).select("circle").transition()
-                            .duration(250)
-                	        .attr("r", nodeSize);
-        
-                	    d3.select(this).select("text").transition()
-                            .duration(250)
-                	        .style("font", "normal 16px Arial")
-                	        .attr("fill", "Blue");
-                    }
-                }
-            )
-        </script>
-    </body>
+	<!-- Transition theme. More available in /themes/transition/ or create your own. -->
+	<link rel="stylesheet" href="deck.js/themes/transition/horizontal-slide.css">
+	
+	<!-- Required Modernizr file -->
+	<script src="deck.js/modernizr.custom.js"></script>
+    <style>
+        dl {
+            padding: 0 100px !important;
+        }
+
+        dt {
+            font-size: 115% !important;
+            font-weight: bold !important;
+        }
+
+        dd {
+            padding-left: 50px !important;
+            padding-bottom: 20px !important;
+        }
+    </style>
+</head>
+<body class="deck-container">
+
+<!-- Begin slides. Just make elements with a class of slide. -->
+
+<section class="slide">
+    <div class="vcenter">
+	    <h1>Bitly Data API's:</h1>
+        <h2>Or how I learned to stop worrying and analyse the internet</h2>
+        <h3 style="font-size: 2em">Micha Gorelick</h3>
+        <h4>
+            <a href="http://micha.gd/" style="color: #666">micha.gd</a><br>
+            <a href="http://twitter.com/mynameisfiber" style="color: #666">@mynameisfiber</a><br>
+        </h3>
+        <br>
+        <h3 style="font-size:1.75em;">w/ <a href="http://danielhfrank.com/">Dan Frank</a> and <a href="https://twitter.com/jphines">Justin Hines</a></h3>
+    </div>
+</section>
+
+<section class="slide">
+    <div class="vcenter">
+        <h1><a href="http://github.com/mynameisfiber/bitlydataapi/">Git Repository</a></h1>
+        <br><br>
+        <h1><a href="http://micha.gd/bitlydataapi/">Rendered Slides</a></h1>
+        <h6>(those are links!)</h6>
+    </div>
+</section>
+
+<section class="slide">
+    <div class="vcenter">
+        <h1>bitly?</h1>
+    </div>
+</section>
+
+<section class="slide">
+    <div class="vcenter">
+        <h4>https://i.chzbgr.com/maxW500/7002819072/h625E0CD8/</h4>
+        <h1>&darr;</h1>
+        <h4>bit.ly/WFJh0S</h4>
+    </div>
+</section>
+
+<section class="slide">
+    <div class="vcenter">
+        <img src="images/encode+decode=awesome.png" width=50%>
+    </div>
+</section>
+
+<section class="slide">
+    <div class="vcenter">
+        <h2>this can lead to complicated systems</h2>
+        <img src="images/realtime_arch.svg" height=85%>
+    </div>
+</section>
+
+<section class="slide">
+    <div class="vcenter">
+        <h1>public API's FTW!</h1>
+        <h5><a href="http://dev.bitly.com/data_apis.html">documentation</a></h5>
+    </div>
+</section>
+
+<section class="slide">
+    <h2>API Overview: <em>link info</em></h2>
+    <dl>
+        <dt><a href="http://dev.bitly.com/data_apis.html#v3_link_info">info</a></dt>
+            <dd>Metadata from the page's HTML</dd>
+        <dt><a href="http://dev.bitly.com/data_apis.html#v3_link_content">content</a></dt>
+            <dd>Main page content</dd>
+        <dt><a href="http://dev.bitly.com/data_apis.html#v3_link_category">category</a></dt>
+            <dd>Category classification</dd>
+        <dt><a href="http://dev.bitly.com/data_apis.html#v3_link_social">social</a></dt>
+            <dd>Social Score - a rating depending on quality of clicks in the past ~24hr</dd>
+        <dt><a href="http://dev.bitly.com/data_apis.html#v3_link_location">location</a></dt>
+            <dd>Significant locations for the link in the past ~24hr</dd>
+        <dt><a href="http://dev.bitly.com/data_apis.html#v3_link_language">language</a></dt>
+            <dd>Significant languages for the link in the past ~24hr</dd>
+        <dt><a href="http://dev.bitly.com/data_apis.html#v3_highvalue">highvalue</a></dt>
+            <dd>A random but popular link through bitly right now (ie: stumbleupon)
+    </dl>
+</section>
+
+<section class="slide">
+    <h2>API Overview: <em>phrase info</em></h2>
+    <dl>
+        <dt><a href="http://dev.bitly.com/data_apis.html#v3_realtime_bursting_phrases">bursting_phrases</a></dt>
+            <dd>Show phrases and associated links currently getting a clickrate ≥2σ higher than their historical model</dd>
+        <dt><a href="http://dev.bitly.com/data_apis.html#v3_realtime_host_phrases">hot_phrases</a></dt>
+            <dd>Show phrases and associated links currently getting a significan clickrate, regardless of their history</dd>
+        <dt><a href="http://dev.bitly.com/data_apis.html#v3_realtime_clickrate">clickrate</a></dt>
+            <dd>Return the current clickrate on a particular phrase</dd>
+        <dt><a href="http://dev.bitly.com/data_apis.html#v3_search">search</a></dt>
+            <dd>Search through bitly's content from the past several days using both the archival and the realtime index</dd>
+    </dl>
+</section>
+
+<section class="slide">
+    <div class="vcenter">
+        <h1>not impressed?</h1>
+        <img src="images/unimpressedinklage.gif">
+    </div>
+</section>
+
+<section class="slide">
+    <div class="vcenter">
+        <h1>same API that</h1>
+        <h1>created <a href="http://rt.ly/">rt.ly</a>!</h1>
+    </div>
+</section>
+
+<section class="slide">
+    <h2>and this sweet thing</h2>
+    <a href="https://bitly.com/a/oauth_apps">bitly access token</a> <input type=password id=in_access_token><input type=submit value="show!" onClick="show_awesome($('#in_access_token').val());"><br>
+    <div id=chart></div>
+    <div id=info> </div>
+</section>
+
+
+<!-- End slides. -->
+
+
+<!-- Begin extension snippets. Add or remove as needed. -->
+
+<!-- deck.navigation snippet -->
+<a href="#" class="deck-prev-link" title="Previous">&#8592;</a>
+<a href="#" class="deck-next-link" title="Next">&#8594;</a>
+
+<!-- deck.status snippet -->
+<p class="deck-status">
+	<span class="deck-status-current"></span>
+	/
+	<span class="deck-status-total"></span>
+</p>
+
+<!-- End extension snippets. -->
+<script src="d3/d3.min.js"></script>
+<script src="examples/awesomegraph/awesomegraph.js"></script>
+		
+
+<!-- Required JS files. -->
+<script src="deck.js/jquery-1.7.2.min.js"></script>
+<script src="deck.js/core/deck.core.js"></script>
+
+<!-- Extension JS files. Add or remove as needed. -->
+<script src="deck.js/core/deck.core.js"></script>
+<script src="deck.js/extensions/hash/deck.hash.js"></script>
+<script src="deck.js/extensions/menu/deck.menu.js"></script>
+<script src="deck.js/extensions/status/deck.status.js"></script>
+<script src="deck.js/extensions/navigation/deck.navigation.js"></script>
+<script src="deck.js/extensions/scale/deck.scale.js"></script>
+
+<!-- MathJax -->
+<!--<script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>-->
+
+<!-- highlight.js -->
+<script src="http://yandex.st/highlightjs/7.2/highlight.min.js"></script>
+
+<!-- Initialize the deck. You can put this in an external file if desired. -->
+<script>
+    hljs.tabReplace = '    '; // 4 spaces
+    hljs.initHighlightingOnLoad();
+
+	$(function() {
+		$.deck('.slide');
+	});
+</script>
+</body>
 </html>

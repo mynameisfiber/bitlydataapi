@@ -1,0 +1,33 @@
+body {
+    padding-right: 25px;
+}
+
+#chart {
+    display: block;
+    float: left;
+    width: 760;
+    padding-right: 10px;
+    margin-right: 10px;
+    border-right: 1px solid #aaa;
+}
+
+#info {
+    width: 590;
+    overflow-x: scoll;
+    word-wrap: break-word;
+}
+
+#info > shead {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+#info > stitle, a {
+    font-size: 14px;
+}
+#info > skeyword {
+    font-size: 10px;
+}
+#info > ssummary {
+    font-size: 12px;
+}
